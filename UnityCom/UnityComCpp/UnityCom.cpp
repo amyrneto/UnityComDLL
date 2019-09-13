@@ -2,13 +2,13 @@
 //
 
 #include "stdafx.h"
-#include <tchar.h>
-#include<string>
 
+//typedef std::basic_string<TCHAR> tstring;
 #include "UnityCom.h"
 
+
 //#define BUF_SIZE 256
-constexpr auto BUF_SIZE = 256;
+constexpr auto BUF_SIZE = 1024;
 
 extern "C"
 {
@@ -19,7 +19,11 @@ extern "C"
 
 	int UNITYCOM_API OpenMemoryShare()
 	{
-		//TCHAR name[] = TEXT("MyFileMappingObject");
+		//tstring s(_T("some string"));
+		//std::vector<TCHAR> buffer(name.begin(), name.end());
+		//buffer.push_back(_T('\0'));
+		//TCHAR* szName = &buffer[0];
+		// string is now addressed by szName, no need to do memory management
 		hMapFile = CreateFileMapping(
 			INVALID_HANDLE_VALUE,    // use paging file
 			NULL,                    // default security
@@ -40,7 +44,7 @@ extern "C"
 			0,
 			BUF_SIZE);
 
-		strBuf = reinterpret_cast<std::string *>(pBuf);
+		//strBuf = reinterpret_cast<std::string *>(pBuf);
 
 		if (pBuf == NULL)
 		{
@@ -54,35 +58,23 @@ extern "C"
 		return 0;
 	}
 
-	std::string UNITYCOM_API ReadMemoryShare()
-	//LPCTSTR UNITYCOM_API ReadMemoryShare()
+	float UNITYCOM_API ReadMemoryShare()
 	{
-//#ifdef UNICODE
-		//std::wstring w;
-		//w = pBuf;
-		//std::string str = std::string(w.begin(), w.end()); // magic here
-//#else
-		//s = pBuf;
-//#endif
-		strBuf = reinterpret_cast<std::string *>(pBuf);
-		return *strBuf;
+		float* r;
+		r = reinterpret_cast<float *>(pBuf);
+		//strBuf = reinterpret_cast<std::string *>(pBuf);
+		return *r;
 		//return pBuf;
 	}
 
-	void UNITYCOM_API WriteMemory(std::string msg)
+	void UNITYCOM_API WriteMemoryShare(float val)
 	{
-		param = new TCHAR[msg.size() + 1];
-		param[msg.size()] = 0;
-		//As much as we'd love to, we can't use memcpy() because
-		//sizeof(TCHAR)==sizeof(char) may not be true:
-		std::copy(msg.begin(), msg.end(), param);
-
-		CopyMemory((PVOID)pBuf, param, (_tcslen(param) * sizeof(TCHAR)));
+		CopyMemory((LPVOID)pBuf, &val, (sizeof(float)));
 	}
+
 	int UNITYCOM_API EndMemoryShare()
 	{
 		UnmapViewOfFile(pBuf);
-
 		CloseHandle(hMapFile);
 		return 0;
 	}

@@ -113,12 +113,6 @@ extern "C"
 		long length = aSize.at(memMapName) * sizeof(float);
 
 		CopyMemory(val, (LPVOID)pBuf, length);
-
-		//float *r;// = (float*)pBuf;
-		//r = reinterpret_cast<float *>(pBuf);
-		//for (long i = 0; i < aSize.at(memMapName); i++) {
-		//	val[i] = *r++;
-		//}
 		return true;
 	}
 

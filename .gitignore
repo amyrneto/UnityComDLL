@@ -1,0 +1,8 @@
+AcessDLL/Build/
+*.csproj
+*.sln
+AcessDLL/Library/
+!/AcessDLL/[Aa]ssets/**/*.meta
+*.exe
+*.dll
+AcessDLL/MonoBleedingEdge/

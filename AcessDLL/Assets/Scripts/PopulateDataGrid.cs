@@ -26,15 +26,10 @@ public class PopulateDataGrid : MonoBehaviour
 
 	public void ClearData()
 	{
-		while (transform.childCount > 0) {
-			Destroy(transform.GetChild(0).gameObject);
-		}
-		/*
 		Transform[] chList = gameObject.GetComponentsInChildren<Transform>();
 		fList = new float[chList.Length];
 		foreach (Transform t in chList) {
 			Destroy(t.gameObject);
 		}
-		*/
 	}
 }

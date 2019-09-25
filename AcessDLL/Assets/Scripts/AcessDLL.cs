@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Reflection;
 
-public class AcessDLL : MonoBehaviour
+public static class AcessDLL
 {
 	//private const string UNITYCOM = "..\\UnityCom\\Release\\UnityCom.dll";
 	private const string UNITYCOM = "..\\UnityCom\\x64\\Release\\UnityCom";

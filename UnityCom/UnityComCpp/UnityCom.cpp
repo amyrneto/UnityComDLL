@@ -24,33 +24,38 @@ extern "C"
 
 	bool UNITYCOM_API IsOpen(char memMapName[NAME_SIZE])
 	{
-		HANDLE hMapFile= mMapHandleArray.at(memMapName);
-		if (hMapFile != NULL) {
-			return true;
+		if (!mMapHandleArray.empty()) {
+			HANDLE hMapFile = mMapHandleArray.at(memMapName);
+			if (hMapFile != NULL) {
+				return true;
+			}
 		}
 		return false;
 	}
-
+	
+	//////////////////////////////////////////////////
+	// Returns:
+	// 0  - Success! A new memory map is opened/created.
+	// >0 - The array size of existing memory map.
+	// <0 - an error has occurred:
+	//			-1 = Array too large
+	//			-2 = Could not create file mapping object
+	//			-3 = Could not create map view of the file
 	int UNITYCOM_API OpenMemoryShare(char memMapName[NAME_SIZE], long _bufSize)
 	{
 		if (_bufSize > MAX_ARRAY_SIZE) {
-			printf("Array too large!");
+			//printf("Array too large!");
 			return -1;
 		}
-		hMap::iterator itMemMapHandArray;
 		HANDLE hMapFile;
 		LPVOID pBuf;
-		bool exist = false;
-		itMemMapHandArray = mMapHandleArray.find(memMapName);
-		if (itMemMapHandArray != mMapHandleArray.end()) {
+		bool exist = AssertExists(memMapName);
+		if (exist) {
 			if (mMapHandleArray.at(memMapName) != NULL) {
 				hMapFile = mMapHandleArray.at(memMapName);
 				pBuf = mMapBufferArray.at(memMapName);
-				printf("Mem name already mapped. (%d)", mMapHandleArray.size());
+				//printf("Mem name already mapped. (%d)", mMapHandleArray.size());
 				return mMapHandleArray.size();
-			}
-			else {
-				exist = true;
 			}
 		}
 
@@ -66,9 +71,8 @@ extern "C"
 
 		if (hMapFile == NULL)
 		{
-			_tprintf(TEXT("Could not create file mapping object (%d).\n"),
-				GetLastError());
-			return 1;
+			//_tprintf(TEXT("Could not create file mapping object (%d).\n"), GetLastError());
+			return -2;
 		}
 		pBuf = MapViewOfFile(hMapFile,   // handle to map object
 			FILE_MAP_ALL_ACCESS, // read/write permission
@@ -78,58 +82,90 @@ extern "C"
 
 		if (pBuf == NULL)
 		{
-			_tprintf(TEXT("Could not map view of file (%d).\n"),
-				GetLastError());
-
+			//_tprintf(TEXT("Could not map view of file (%d).\n"), GetLastError());
 			CloseHandle(hMapFile);
-
-			return 1;
+			return -3;
 		}
 
 		// Add new handler, buffer and array size;
 		if (exist) {
 			mMapHandleArray.at(memMapName) = hMapFile;
 			mMapBufferArray.at(memMapName) = pBuf;
-			aSize.at(memMapName) = _bufSize;
+			mMapBufferSizeArray.at(memMapName) = _bufSize;
 		}
 		else {
 			mMapHandleArray.insert(std::pair<char*, HANDLE>(memMapName, hMapFile));
 			mMapBufferArray.insert(std::pair<char*, LPVOID>(memMapName, pBuf));
-			aSize.insert(std::pair<char*, long>(memMapName, _bufSize));
+			mMapBufferSizeArray.insert(std::pair<char*, long>(memMapName, _bufSize));
 		}
 		return 0;
 	}
 
-	bool UNITYCOM_API ReadMemoryShare(char memMapName[NAME_SIZE], float *val)
+	int UNITYCOM_API WriteMemoryShare(char memMapName[NAME_SIZE], float *val, long offset, long length)
 	{
-		hMap::iterator itMemMapHandArray;
-		itMemMapHandArray = mMapHandleArray.find(memMapName);
-		if (itMemMapHandArray == mMapHandleArray.end()) {
-			printf("Mapa de memória inexistente!");
-			return false;
+		if (offset < 0) {
+			offset = 0;
 		}
 
-		LPVOID pBuf = mMapBufferArray.at(memMapName);
-		long length = aSize.at(memMapName) * sizeof(float);
-
-		CopyMemory(val, (LPVOID)pBuf, length);
-		return true;
+		if (AssertExists(memMapName)) {
+			long size = mMapBufferSizeArray.at(memMapName);
+			if (length < 0) {
+				length = size;
+			}
+			if ((offset + length) > size) {
+				// Index out of range
+				return 1;
+			}
+			LPVOID pBuf = mMapBufferArray.at(memMapName);
+			LPVOID dest = (LPVOID)((unsigned long)pBuf + offset * sizeof(float));
+			CopyMemory(dest, val, length * sizeof(float));
+			return 0;
+		}
+		return -1;
 	}
 
-	bool UNITYCOM_API WriteMemoryShare(char memMapName[NAME_SIZE], float *val)
+	int UNITYCOM_API ReadMemoryShare(char memMapName[NAME_SIZE], float *val, long offset, long length)
 	{
-		hMap::iterator itMemMApHandArray;
-		itMemMApHandArray = mMapHandleArray.find(memMapName);
-		if (itMemMApHandArray == mMapHandleArray.end()) {
-			printf("Mapa de memória inexistente!");
-			return false;
+		if (offset < 0) {
+			offset = 0;
 		}
+		
+		if (AssertExists(memMapName)) {
+			long size = mMapBufferSizeArray.at(memMapName);
+			if (length < 0) {
+				length = size;
+			}
+			if ((offset + length) > size) {
+				// Index out of range
+				return 1;
+			}
+			LPVOID pBuf = mMapBufferArray.at(memMapName);
+			LPVOID orig = (LPVOID)((unsigned long)pBuf + offset * sizeof(float));
+			CopyMemory(val, orig, length * sizeof(float));
+			return 0;
+		}
+		return -1;
+	}
+	
+	long UNITYCOM_API GetSize(char memMapName[NAME_SIZE])
+	{
+		if (AssertExists(memMapName)) {
+			return mMapBufferSizeArray.at(memMapName);
+		}
+		return -1;
+	}
 
-		LPVOID pBuf = mMapBufferArray.at(memMapName);
-		long length = aSize.at(memMapName) * sizeof(float);
-				
-		CopyMemory((LPVOID)pBuf, val, length);
-		return true;
+	bool UNITYCOM_API CloseMemoryShare(char memMapName[NAME_SIZE])
+	{
+		if (AssertExists(memMapName)) {
+			LPVOID pBuf = mMapBufferArray.at(memMapName);
+			HANDLE hMapFile = mMapHandleArray.at(memMapName);
+
+			UnmapViewOfFile(pBuf);
+			CloseHandle(hMapFile);
+			return true;
+		}
+		return false;
 	}
 
 	bool UNITYCOM_API CloseAllMemoryShare()
@@ -149,22 +185,13 @@ extern "C"
 		}
 		return true;
 	}
+}
 
-	bool UNITYCOM_API CloseMemoryShare(char memMapName[NAME_SIZE])
-	{
-		hMap::iterator itMemMApHandArray;
-		itMemMApHandArray = mMapHandleArray.find(memMapName);
-		if (itMemMApHandArray == mMapHandleArray.end()) {
-			printf("Mapa de memória inexistente!");
-			return false;
-		}
-
-		LPVOID pBuf = mMapBufferArray.at(memMapName);
-		HANDLE hMapFile = mMapHandleArray.at(memMapName);
-
-		UnmapViewOfFile(pBuf);
-		CloseHandle(hMapFile);
-		return true;
+bool AssertExists(char memMapName[NAME_SIZE]) {
+	hMap::iterator itMemMApHandArray;
+	itMemMApHandArray = mMapHandleArray.find(memMapName);
+	if (itMemMApHandArray == mMapHandleArray.end()) {
+		return false;
 	}
-
+	return true;
 }
